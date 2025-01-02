@@ -49,6 +49,7 @@ package algorithm
 // 		for j > 0 && haystack[i] != needle[j] {
 // 			j = prefixTable[j-1]
 // 		}
+
 // 		if haystack[i] == needle[j] {
 // 			j++
 // 		}

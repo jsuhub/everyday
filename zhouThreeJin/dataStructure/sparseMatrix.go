@@ -10,17 +10,17 @@ package dataStructure
 // 	val int
 // }
 
-// func main() {
-// 	var cheaperMap [10][10]int
-// 	cheaperMap[1][2] = 1 //黑子为1
-// 	cheaperMap[2][3] = 2 //白字为2
-// 	for _, v := range cheaperMap {
-// 		for _, v2 := range v {
-// 			fmt.Print(v2, "\t")
+// // func main() {
+// // 	var cheaperMap [10][10]int
+// // 	cheaperMap[1][2] = 1 //黑子为1
+// // 	cheaperMap[2][3] = 2 //白字为2
+// // 	for _, v := range cheaperMap {
+// // 		for _, v2 := range v {
+// // 			fmt.Print(v2, "\t")
 
-// 		}
-// 		fmt.Println()
-// 	}
+// // 		}
+// // 		fmt.Println()
+// 	// }
 // 	//转化稀疏数组
 // 	//遍历数组 如果发现不为默认值 那么就创建node结构体放入切片中
 // 	var parse []node
