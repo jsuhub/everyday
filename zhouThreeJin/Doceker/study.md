@@ -514,7 +514,7 @@ mysql -uroot -p
 #解决了中文乱码问题-并且数据保存了  
 ```  
 
-## DockerFile解析  
+# DockerFile解析  
 定义：Dockerfile是用来构建Docker镜像的文本文件，是由一条条构建镜像所需的指令和参数构成的脚本。——类似shell脚本    
 
 作用：因为之前每次修改都要一次commit一次很麻烦，所以给出一个list清单，后续需要加入任何功能直接在list清单里面即可
@@ -638,7 +638,7 @@ docker image prune
 ```  
 
 
-## Docker 微服务实战  
+# Docker 微服务实战  
 ### 通过IDEA新建一个普通微服务模块  
 1.自己在IDEA里面写SpringBoot的一套    
 2.使用Maven进行打包bulid生成jar包  
@@ -666,8 +666,268 @@ docker run -d -p 8888:8888 zx_docker:1.0   #生成容器
 
 ``` 
 
-## Docker网络
+# Docker网络
 docker 不启动网络情况  
 1.ens33:在nat模式中这个就是宿主机的ip地址    
 2.lo:local本地回环电路127.0.0.1      
-3.virbr0:默认固定ip192.168.122.1是在CentOS的安装过程中如果有选择相关虚拟化的服务安装系统后，启动网卡时会发现有一个以网桥连接的私网地址的virbr0网卡，是用来做虚拟机网桥的   
+3.virbr0:默认固定ip192.168.122.1是在CentOS的安装过程中如果有选择相关虚拟化的服务安装系统后，启动网卡时会发现有一个以网桥连接的私网地址的virbr0网卡，是用来做虚拟机网桥的————类似交换机  
+
+当开启docker服务后  
+在上面的基础上会出现docekr0:  
+ip为172.17.0.1,它是为实现宿主机与容器，容器与容器间的互相连接。  
+
+### 网络命令  
+`docerk network ls  `   
+![](./png/png18.jpeg)  
+docker会默认创造三大网络模式  
+1.bridge:为每一个容器分配、设置i，并将容器连接到docker0（就是途中的bridge）————虚拟网桥，默认该模式。独立分配  
+2.host:容器将不会虚拟出自己的网卡，配置自己的ip等，而是使用宿主机的ip和端口。公用宿主机的  
+3.none:容器有独立的Network namespace,但并没有对其进行任何网络设置，如分配veth pari和网络连接，ip等没有网络驱动，拥有原材料但是没有设置里面的内容。`--network none 指定NAME/ID`  
+4.container:新创建的容器不会创建自己的网卡和配置自己的ip,而是和一个指定的容器共享ip、端口等。公用别人的ip,不一定是宿主机。命令`--netwoek container:NAME/ID `
+
+
+`docker network create zx`  表示创建了一个zx名称bridge类型（网桥）的网络  
+`docker netrwork rm  zx`  删除刚刚的网络  
+`docker network inspect xxx` 查看网络数据源（JSON串的格式）  
+
+### Docker 网络的作用  
+容器间的互连通信以及端口映射。  
+容器IP变动时候可以通过服务名直接网络通信而不受影响。
+#### bridge  
+其中最重要的是docker0，它在**内核层**连通了其他的物理或虚拟网卡，这就是将所有容器和本地主机都放到同一个物理网络。Docker默认制定了docker0接口的IP地址和子网掩码，让主机和容器之间可以通过网桥相互通信。因为是网桥并且其他bridge模式都连接到这个Dockr0网桥上所以就可以实现转发的功能。  
+![](./png/png19.jpeg)  
+所以上述表示了横向访问就需要通过网桥docker0（默认网关）    
+注意特点：网桥docker0创建一对对等虚拟设备接口一个叫veth，另一个叫eth0（容器内部）成对匹配。  
+```
+docker run -d -p 8081:8080 --name tomcat81 tomcat-jdk8
+docker run -d -p 8081:8080 --name tomcat82 tomcat-jdk8
+#创建两个tomcat容器81、82  
+ip addr 
+#查看宿主机里面，发现添加了 25 veth@24 两个  
+docker exec -it tomcat81 bash 
+ip addr 
+#查看容器内部发现了24  eth0@if25  存在一一对应关系  
+```   
+
+#### host  
+直接使用宿主机的ip地址与外界通信，不再需要NAT(网桥转换)。不会虚拟出自己的网卡和ip。   
+`docker run -d -p 8081:8080 --network  host --name tomcat83 tomcat-jdk8`创建host的网络模式，此时会出现警告因为网络映射已经和主机一样了端口映射没有意义了。   
+`docker run -d  --network  host --name tomcat83 tomcat-jdk8`   
+`ip addr`  发现这个里面的网络配置和宿主机的网络配置一摸一样  
+![](./png/png20.jpeg)  
+就相当于在主机上下载了一个tomcat服务  
+
+#### none  
+禁用了网络功能之用lo（本地回环了）127.0.0.1    
+不会进行任何配置没有网卡。
+`docker run -d -p 8084:8080 --network  none --name tomcat84 tomcat-jdk8`
+
+#### container  
+新建的容器和意见存在的一个容器共享一个网络ip配置而不是和宿主机共用，只有ip、端口范围的共用其他的  
+![](./png/png21.jpeg)
+`docker run -d -p 8086:8080 --network  container:toncat82  --name tomcat85 tomcat-jdk8`会报错因为端口冲突，82和85共用用一个ip同一个端口  
+注意：如果关闭了共享源即container映射的，那么另一台就会只剩下lo了  
+
+#### 自定义网络  
+因为docker 容易内部ip是可能变化的，所以需要定义服务名  
+自定义桥接网络中默认使用的是桥接网络bridge  
+```
+docker network create zx_network   #创建自定义网络  
+docker run -d -p 8081:8080 --network  zx_network --name tomcat81 tomcat-jdk8
+docker run -d -p 8081:8080 --network  zx_network --name tomcat82 tomcat-jdk8
+#将81和82放入自定义网络中 ，此时就可以在81/82容器中直接ping tomcat81/82 直接用服务名去ping通了，从而达到不需要把血丝    
+```
+
+# Docker容器编排
+定义：是一种对Docker容器集群的快速编排工具，需要一个YAML格式的配置文件——docker_compose.yml。写好多个容器之间的调用关系。然后，只要一个命令就可以实现同时启动/关闭这些容器  
+docker允许用户通过一个单独的docker-compose.yml模版文件（YAML格式）来定义一组相关联的的应用容器为一个项目（poject）  
+
+## 安装
+`curl -SL https://github.com/docker/compose/releases/download/v2.33.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose`
+如果下载的太慢了可以使用finalshell去本地下载之后上传到虚拟机上 
+`chmod +x /usr/local/bin/docker-compose`赋予权限    
+`docker --version `检查是否安装成功
+`rm /usr/local/bin/docker-compose`卸载Docker Compose  
+
+## 要素
+1.服务————一个一个应用容器实例。   
+2.工程—————由一组关联的容器组成的一个完整业务单元，在docker-compose.yml文件中定义  
+
+## 步骤
+1.编写Dockerfile定义各个微服务应用并构建出对应的镜像文件  
+2.使用dockercompose.yml定义一个完整业务单元，安排好整体应用中的各个容器服务。  
+3.最后执行docker-compose up命令来启动并运行整个应用程序，完成一键部署上线。  
+
+## 常见命令  
+```
+docker-compose up  #启动所有docker-compose服务
+docker-compose up -d #启动所有docker-compose服务并后台运行  
+docker-compose down #停止并删除容器、网络、卷、镜像等。  
+docker-compose exec yml里面的服务id #进入容器内部实列  
+docekr-compose config #检查配置  
+docker-compose config-q #检查配置，有问题才输出  
+
+```
+
+
+## 微服务改造并生产新镜像  
+before
+1.创建数据库脚本  
+2.定义好函数，spring_boot  
+3.使用maven打包packeage，生产jar包  
+4.jar包放到同一个Dockerfile文件中，编写Dockerfile文件  
+5.docker bulid -t name:1 构建dockerfile文件  
+
+![](./png/png22.jpeg)  
+
+after  
+`vim docker-conpose.yml` 在Dockerfile的同一文件下编写  
+直接编写docker-compose.yml文件  
+```
+version "3"    //版本号
+services:       //几个容器实例
+  microService:     
+    image:name_docker:1   //镜像名称  
+    container_name:zx_1     //容器名称
+    ports:                //端口号映射
+      - "6001:6001"
+    volumes:                //容器卷，前面是宿主机后面是容器内的路径  
+      - /app/microService:/data  
+    network:                  //属于自定义网络，可以按照名称映射ip  
+      - zx
+    depends_on:               //依赖于  
+      - redis 
+      - mysql  
+    
+    redis:           //未表明名称会显示 当前文件夹_redis
+      image:redis:6.0.8       //镜像名称
+      ports:                  //端口
+        - "6379:6379"
+      volumes:                //逻辑卷
+        - /app/redis/redis.conf:/etc/redis/redis.conf
+        - /app/redis/data:/data
+      network:
+        - zx
+      command: redis-server /etc/redis/redis.conf                   //使用命令启动了这个配置文件  
+
+    mysql:
+      image: mysql:5.7  
+      environment:
+        MYSQL_ROOT_PASSWORD:'123456'
+        MYSQL_ALLOW_EMPTY_PASSWORD:'no'
+        MYSQL_DATABASE:'db12'
+        MYSQL_USER:'zx'    
+        MSYQL_PASSWORD:'zx123'
+      ports"
+        - "3306:3306"
+      volumes:
+        - /app/mysql/db:/var/lib/mysql
+        - /app/mysql/conf/my.cnf:/etc/my.cnf
+        - /app/mysql/init:/docker-entrypoint-initdb.d
+      networks:
+        - zx
+      command: --default-authentication-plugin=mysql_native_password      // 解决外部无妨访问的问题  
+      
+network:                 //自定义网络  
+    zx            
+```
+编写完成后将原本配置文件的ip地址直接修改成为域名(mysql/redis)等再次上传。  
+`docker-compose config -q`表示检查一下编写的是否有错误  
+`docekr-compose up -d`  运行启动这个一键部署，后台运行。   
+`docker network ls ` 会显示当前  文件夹_zx  
+
+之后依旧进mysql建立表格等基本配置  
+
+`docker-compose stop` 一键停止当前network的关闭  
+
+
+# Docker轻量级可视化开发  
+1.监控  
+2.统计  
+Portainer是一种轻量级应用，它提供了图形化界面，用于方便地管理Docker环境，包括单机环境和集群环境  
+## 安装
+`docker run -d -p 8000:8000 -p 9000:9000 --restart=always  -v /var/docker.sock:/var/run/docker.sock -v portainer_data:/data  portainer/portainer `     alwaly表示docker重启后这个容器也跟随启动  
+
+第一次登陆需要创建admin ,访问地址为虚拟机主机ip:9000  
+密码8位  
+选择local后就可以看见图形化界面dashbord（仪表盘）  
+Stack表示有几组编排的容器（compose）  
+就是`docker system df `
+
+
+# Docker容器监控工具重量级  
+ 产生原因：docker stats 统计结果只能是当前宿主机的全部容器，数据资料是实时的，没有地方存储、没有健康指标过线预警等功能。  
+ 容器预警三套：CAdvisor监控收集+InfluxDB存储数据+Granfana展示图表   
+ ![](./png/png23.jpeg)  
+
+ CAdvisor:是一个容器资源监控工具，包括容器的内存、CPU、网络IO、磁盘IO等同时监控，并且默认存储2分钟的数据，只针对单物理机。    
+ InfluxDB: 是一个Go语言编写的开源分布式时序、事件和指标数据库，无需外部依赖，时序数据库   
+ Granfana:开源的数据监控分析可视化平台，支持多种数据源配置  
+
+## 安装——利用compose 
+```
+mkdir cig 
+vim docekr-compose.yml  
+______________________________
+version '3.1'     //版本  
+
+volumes:
+  grafana_data:{}
+
+service:
+  infulxdb:
+    image:tutum/influxdb:0.9
+    restart:always    
+    environment:          //预加载的数据  
+      - PRE_CREATE_DB=cadvisor
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+    volumes:
+      - ./data/influxdb:/data
+
+  cadvisor:
+    image:google/cadvisor
+    links:
+      - influxdb:influxsrv    //可以连接道上面的容器放置数据。  
+    command: -storage_driver=influxdb-storage_driver_db=cadvisor   -storage_driver_host=inclusxrv:8086
+    restart:always        //驱动的引擎    
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro  
+  
+  grafana:
+    user:"104"
+    image:grafana/grafana
+    user:"104"
+    restart:always
+    links:
+      - influxdb:influxsry
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - HTTP_USER=admin
+      - HTTP_PASS=admin
+      - INFLUXDB_HOST=influxsrv
+      - INFLUXDB_PORT+8086
+_______________________________
+docker-compose config  -q
+docker-compose up -d
+docekr ps  
+```
+
+查看：  
+cAdvisor收集服务：http://虚拟机ip:8080/  
+influxdb收集服务：http://虚拟机ip:8083/  
+grafana收集服务：http://虚拟机ip:3000/  
+
+
+
+
+
