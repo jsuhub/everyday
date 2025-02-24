@@ -208,6 +208,7 @@ systemctl restart docker #重启docker
 
 
 
+
 ### 镜像命令
 docker images  #列出本地主机的镜像  
 ![](./png/png5.jpeg)
@@ -926,8 +927,6 @@ docekr ps
 cAdvisor收集服务：http://虚拟机ip:8080/  
 influxdb收集服务：http://虚拟机ip:8083/  
 grafana收集服务：http://虚拟机ip:3000/  
-
-
 
 
 
